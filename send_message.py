@@ -19,8 +19,7 @@ async def main():
     users = helper.get_users_from_csv(config.REGISTERED_USERS_CSV)
     n = args.num_users/(len(users))
 
-    # users_set = helper.select_random_n_percent(users, n)
-    users_set = users[:5]
+    users_set = helper.select_random_n_percent(users, n)
     log_filename = args.agent + "_" + time.strftime("%Y%m%d-%H%M%S") + ".csv"
     logger = helper.setup_logger(log_filename)
 

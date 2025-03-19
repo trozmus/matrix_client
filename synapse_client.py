@@ -153,7 +153,6 @@ class SynapseClient(MatrixAPI):
             username = user["username"]
             self.set_access_token(access_token)
             list_my_room_id = await self.get_my_rooms()
-            print("User: ", username, "Rooms: ", list_my_room_id)
             for item in (list_my_room_id):
                 room_id = item['room_id']
                 whatsuapp_room = item['whatsuapp_member']
