@@ -127,7 +127,7 @@ class SynapseClient(MatrixAPI):
             if response.status_code == 200:
                 end_time = time.time()
                 execution_time = round(end_time - start_time, 6)
-                log_entry = f"{start_time:0.0f}, {self.agent}, {username},{room_id},{response.status_code},{msg_size},{execution_time}, {whatsuapp_room}"
+                log_entry = f"{start_time:0.0f}, {self.agent}, {username},{room_id},{response.status_code},{msg_size},{execution_time}, {whatsuapp_room}, 'Write'"
                 self.logger.info(log_entry)
                 return response.status_code
             if response.status_code == 429:
@@ -137,28 +137,81 @@ class SynapseClient(MatrixAPI):
             else:
                 end_time = time.time()
                 execution_time = round(end_time - start_time, 6)
-                log_entry = f"{start_time:0.0f}, {self.agent},{username},{room_id},{response.status_code},{msg_size},{execution_time}, {whatsuapp_room}"
+                log_entry = f"{start_time:0.0f}, {self.agent},{username},{room_id},{response.status_code},{msg_size},{execution_time}, {whatsuapp_room},'Write'"
                 self.logger.info(log_entry)
                 return response.status_code
         end_time = time.time()
         execution_time = round(end_time - start_time, 6)
-        log_entry = f"{start_time:0.0f}, {self.agent}, {username},{room_id},{response.status_code},{msg_size},{execution_time}, {whatsuapp_room}"
+        log_entry = f"{start_time:0.0f}, {self.agent}, {username},{room_id},{response.status_code},{msg_size},{execution_time}, {whatsuapp_room},'Write'"
         self.logger.info(log_entry)
         return response.status_code
+    
+    async def get_room_all_messages(self, room_id, username, whatsuapp_room):
+        start_time = time.time()
+        messages = []
+        sync_endpoint = f"/_matrix/client/v3/sync?timeout=100"
+        delay = 1
+        retries = 5
 
-    async def send_message_gen(self, users, message_set):
+        for i in range(retries):
+            response = await self._request("GET", sync_endpoint)
+            if response.status_code == 200:
+                start_token = response.json()['next_batch']
+                break
+            if response.status_code == 429:
+                print(f"Rate limited, retrying in {delay} seconds...")
+                await asyncio.sleep(delay)
+                delay *= 2
+            else:
+                end_time = time.time()
+                execution_time = round(end_time - start_time, 6)
+                msg_size = sum(len(item) for item in messages)
+                log_entry = f"{start_time:0.0f}, {self.agent}, {username},{room_id},{response.status_code},{msg_size},{execution_time}, {whatsuapp_room}, 'Read'"
+                self.logger.info(log_entry)
+                return len(messages)        
+        
+        next_token = start_token
+       
+        if next_token:
+            endpoint = f"/_matrix/client/v3/rooms/{room_id}/messages"
+            params = {"from": next_token, "limit": 100, "dir": 'f'}
+            response = await self._request("GET", endpoint, params)
+            if response.status_code == 200:
+                data = response.json()
+                chunk = data.get("chunk", [])
+                messages.extend(chunk)
+                next_token = data.get("end", None)
+            else:
+                print("❌ Error fetching messages:", response.status_code)
+                return 0
+        end_time = time.time()
+        execution_time = round(end_time - start_time, 6)
+        msg_size = sum(len(item) for item in messages)
+        log_entry = f"{start_time:0.0f}, {self.agent}, {username},{room_id},{response.status_code},{msg_size},{execution_time}, {whatsuapp_room}, 'Read'"
+        self.logger.info(log_entry)
+        return len(messages)
+        
+    async def  send_message_gen(self, users, message_set):
 
         for user in tqdm(users):
             access_token = user["access_token"]
             username = user["username"]
+
             self.set_access_token(access_token)
             list_my_room_id = await self.get_my_rooms()
+            # read all messages from user's room_id
+            
             for item in (list_my_room_id):
                 room_id = item['room_id']
                 whatsuapp_room = item['whatsuapp_member']
+                ret = await self.get_room_all_messages(room_id, username, whatsuapp_room)
 
+
+            for item in (list_my_room_id):
+                room_id = item['room_id']
+                whatsuapp_room = item['whatsuapp_member']
                 for i in range(1, random.randint(2, 10)):
-                    random_message = random.choice(message_set)
+                    random_message = str(i)+' - '+ random.choice(message_set)
                     ret = await self.send_message(room_id, random_message, username, whatsuapp_room)
 
     async def register_users_from_csv(self, input_csv, output_csv):
@@ -232,18 +285,59 @@ class SynapseClient(MatrixAPI):
                 invited_rooms = data.get("rooms", {}).get("join", {})
                 room_list = []
                 for i in invited_rooms:
-                    whatsuapp_member = False
-                    bot_whatsuapp = False
-                    for ii in invited_rooms[i]["timeline"]["events"]:
-                        if (ii["type"] == "m.room.encrypted") & (ii['sender'] == '@whatsapp-mudita:connect.mudita.com'):
-                            bot_whatsuapp = True
-                        if (ii["type"] == "m.room.member") & (ii['sender'] == '@whatsapp-mudita:connect.mudita.com'):
-                            whatsuapp_member = True
-                    if bot_whatsuapp == False:
-                        room_list.append(
-                            {"room_id": i, "whatsuapp_member": whatsuapp_member})
+                    # print("")
+                    # print("====================================")
+                    # print('checking rooms:', i)
+                
+                    whatsapp_member = False
+                    whatsapp_bot = False
+                    isBridge = False
+                    for ii in invited_rooms[i]["state"]["events"]:
+                        # print(ii["type"])
+                        # print(ii["sender"])
 
-                return room_list  # Return list of room IDs
+                        # if ii["type"] == "m.room.member":
+                        #     print(ii["sender"])
+                        if (ii["type"] == "m.bridge"):
+                            isBridge = True
+                        if (ii["type"] == "m.room.member") & (ii['sender'].startswith('@whatsapp_')):
+                            whatsapp_member = True
+                        if (ii["type"] == "m.room.member") & (ii['sender'].startswith('@whatsapp-mudita')):
+                            whatsapp_bot = True
+                        
+                    # print('whatsuapp_member:', whatsapp_member)
+                    # print('whatsuapp_bot:', whatsapp_bot)
+                    # print('isBridge:', isBridge)
+                    
+                    
+                
+                    # Smiec
+                    # whatsuapp_member: True
+                    # whatsuapp_bot: True
+                    # isBridge: False
+
+                    if (whatsapp_member == True) & (whatsapp_bot == True) & (isBridge == False):
+                        s=True
+
+                    # bot
+                    # whatsuapp_member: False
+                    # whatsuapp_bot: True
+                    # isBridge: False
+                    if (whatsapp_member == False) & (whatsapp_bot == True) & (isBridge == False):
+                        b=True
+                    
+                    if (whatsapp_member == True) & (whatsapp_bot == True) & (isBridge == True):
+                        room_list.append(
+                            {"room_id": i, "whatsuapp_member": whatsapp_member})
+                    
+                    if (whatsapp_member == False) & (whatsapp_bot == False) & (isBridge == False):
+                        room_list.append(
+                            {"room_id": i, "whatsuapp_member": whatsapp_member})
+
+
+
+
+            return room_list  # Return list of room IDs
 
             if response.status_code == 429:
                 print(f"Rate limited, retrying in {delay} seconds...")

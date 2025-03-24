@@ -1,4 +1,5 @@
 import httpx
+import requests
 
 
 class MatrixAPI:
@@ -27,12 +28,22 @@ class MatrixAPI:
 
         except httpx.RequestError as e:
             print(f"Request Error: {e}")
+            if hasattr(e.response, "status_code"):
             # return e.response.status_code
-            return e.response
+                return e.response
+            else:
+                fake_response = requests.Response()
+                fake_response.status_code = 500
+                return fake_response
         except httpx.HTTPStatusError as e:
             print(f"HTTP Error: {e.response.status_code} - {e.response.text}")
-            return e.response
-
+            if hasattr(e.response, "status_code"):
+            # return e.response.status_code
+                return e.response
+            else:
+                fake_response = requests.Response()
+                fake_response.status_code = 500
+                return fake_response
     async def close(self):
         """Close the HTTP client."""
         await self.client.aclose()

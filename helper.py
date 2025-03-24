@@ -45,7 +45,7 @@ def setup_logger(log_filename):
         with open(log_filename, mode="w", newline='') as file:
             writer = csv.writer(file)
             writer.writerow(["Timestamp", "Time", "Agent", "Username",
-                            "Target", "Return Code", "Msg Size", "Execution Time (s)", "isWhatsApp"])
+                            "Target", "Return Code", "Msg Size", "Execution Time (s)", "isWhatsApp", "RW"])
     logger = logging.getLogger("CSVLogger")
     logger.setLevel(logging.INFO)
 
