@@ -26,8 +26,8 @@ async def main():
 
     # Register users from CSV and store user IDs and access tokens
     synapse = SynapseClient(config.BASE_URL, logger=logger, agent=args.agent)
-    
-    for i in range(len(users_set)):
+
+    for i in range(20):
         await synapse.send_message_gen(users_set, helper.message_set)
 
     # Close the async client
