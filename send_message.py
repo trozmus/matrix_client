@@ -20,15 +20,14 @@ async def main():
     n = args.num_users/(len(users))
 
     users_set = helper.select_random_n_percent(users, n)
-    users_set = users[:5]
+    # users_set = users[:5]
     log_filename = args.agent + "_" + time.strftime("%Y%m%d-%H%M%S") + ".csv"
     logger = helper.setup_logger(log_filename)
 
     # Register users from CSV and store user IDs and access tokens
     synapse = SynapseClient(config.BASE_URL, logger=logger, agent=args.agent)
 
-    for i in range(20):
-        await synapse.send_message_gen(users_set, helper.message_set)
+    await synapse.send_message_gen(users_set, helper.message_set)
 
     # Close the async client
     await synapse.close()
